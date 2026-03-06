@@ -1,7 +1,7 @@
-const canvas = document.getElementById("wheel")
-const ctx = canvas.getContext("2d")
+const canvas=document.getElementById("wheel")
+const ctx=canvas.getContext("2d")
 
-const sectors = [
+const sectors=[
 
 "x2",
 "x3",
@@ -14,11 +14,12 @@ const sectors = [
 
 ]
 
-let angle = 0
+let rotation=0
+let velocity=0
 
 function drawWheel(){
 
-const arc = (Math.PI*2)/sectors.length
+const arc=(Math.PI*2)/sectors.length
 
 ctx.clearRect(0,0,400,400)
 
@@ -26,7 +27,7 @@ sectors.forEach((s,i)=>{
 
 ctx.beginPath()
 
-ctx.fillStyle = i%2 ? "#2563eb" : "#16a34a"
+ctx.fillStyle=i%2?"#2563eb":"#16a34a"
 
 ctx.moveTo(200,200)
 
@@ -43,43 +44,50 @@ i*arc,
 ctx.fill()
 
 ctx.fillStyle="white"
+ctx.font="18px Arial"
 
-ctx.fillText(s,180,50)
+ctx.fillText(s,170,50)
 
 })
 
 }
 
-drawWheel()
+function animate(){
 
-function spinWheel(result){
-
-let target = result * (Math.PI*2/sectors.length)
-
-let speed = 0.3
-
-let interval = setInterval(()=>{
-
-angle += speed
-
-speed *= 0.99
+rotation+=velocity
 
 ctx.save()
 
 ctx.translate(200,200)
-ctx.rotate(angle)
+ctx.rotate(rotation)
 ctx.translate(-200,-200)
 
 drawWheel()
 
 ctx.restore()
 
-if(speed < 0.002){
-
-clearInterval(interval)
+requestAnimationFrame(animate)
 
 }
 
-},16)
+animate()
+
+function spinWheel(result){
+
+velocity=0.3
+
+let slow=setInterval(()=>{
+
+velocity*=0.97
+
+if(velocity<0.001){
+
+velocity=0
+
+clearInterval(slow)
+
+}
+
+},50)
 
 }
