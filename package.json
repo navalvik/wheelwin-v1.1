@@ -1,0 +1,14 @@
+{
+  "name": "wheelwin-v1.1",
+  "version": "1.0.0",
+  "description": "WheelWin-v1.1 multiplayer roulette telegram web app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  }
+}
