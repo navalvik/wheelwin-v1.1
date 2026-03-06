@@ -2,47 +2,40 @@ const socket = io()
 
 const readyBtn = document.getElementById("readyBtn")
 const spinBtn = document.getElementById("spinBtn")
-const playersDiv = document.getElementById("players")
 const statusDiv = document.getElementById("status")
 
-let players = []
-let readyList = []
+let currentSpeed=1
+let roundActive=false
 
-readyBtn.onclick = () => {
+readyBtn.onclick=()=>{
 
 socket.emit("player_ready")
 
 }
 
-spinBtn.onclick = () => {
+spinBtn.onmousedown=()=>{
 
-socket.emit("spin_wheel")
+socket.emit("spin_press")
 
 }
 
-socket.on("players_update", data => {
+spinBtn.onmouseup=()=>{
 
-players = data
+socket.emit("spin_release")
 
-renderPlayers()
+}
 
-})
+socket.on("game_state",state=>{
 
-socket.on("ready_update", data => {
+roundActive=state.running
+currentSpeed=state.speed
 
-readyList = data
-
-renderPlayers()
-
-})
-
-socket.on("game_start", () => {
-
-statusDiv.innerText = "Game Started"
+updateSpeed(state.speed)
+updateTimer(state.timer)
 
 })
 
-socket.on("spin_result", index => {
+socket.on("round_result",index=>{
 
 spinWheel(index)
 
