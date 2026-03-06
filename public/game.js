@@ -1,42 +1,66 @@
-const socket = io()
-
 const readyBtn = document.getElementById("readyBtn")
 const spinBtn = document.getElementById("spinBtn")
 const statusDiv = document.getElementById("status")
+const wheel = document.getElementById("wheel")
 
-let currentSpeed=1
-let roundActive=false
+let currentSpeed = 1
+let roundActive = false
+let rotation = 0
+let spinInterval = null
 
-readyBtn.onclick=()=>{
+// READY
+readyBtn.onclick = () => {
 
-socket.emit("player_ready")
+    roundActive = true
+    statusDiv.innerText = "Player ready"
 
-}
-
-spinBtn.onmousedown=()=>{
-
-socket.emit("spin_press")
-
-}
-
-spinBtn.onmouseup=()=>{
-
-socket.emit("spin_release")
+    readyBtn.style.background = "yellow"
 
 }
 
-socket.on("game_state",state=>{
+// Нажатие SPIN
+spinBtn.onmousedown = () => {
 
-roundActive=state.running
-currentSpeed=state.speed
+    if (!roundActive) return
 
-updateSpeed(state.speed)
-updateTimer(state.timer)
+    currentSpeed *= 2
 
-})
+    statusDiv.innerText = "Speed: " + currentSpeed
 
-socket.on("round_result",index=>{
+    startSpin()
 
-spinWheel(index)
+}
 
-})
+// Отпускание SPIN
+spinBtn.onmouseup = () => {
+
+    if (!roundActive) return
+
+    currentSpeed = 1
+
+    statusDiv.innerText = "Speed normal"
+
+}
+
+// Запуск вращения
+function startSpin() {
+
+    if (spinInterval) return
+
+    spinInterval = setInterval(() => {
+
+        rotation += currentSpeed * 5
+
+        wheel.style.transform = `rotate(${rotation}deg)`
+
+    }, 50)
+
+}
+
+// остановка
+function stopSpin() {
+
+    clearInterval(spinInterval)
+    spinInterval = null
+
+}
