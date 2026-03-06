@@ -10,61 +10,140 @@ app.use(express.static("public"))
 
 let players = []
 let readyPlayers = new Set()
-let gameStarted = false
 
-io.on("connection", (socket) => {
+let gameState = {
 
-    const player = {
-        id: socket.id,
-        name: "Player-" + Math.floor(Math.random() * 9999)
-    }
+running:false,
+speed:1,
+buttonPress:{},
+timer:0
 
-    players.push(player)
+}
 
-    io.emit("players_update", players)
+function broadcastState(){
 
-    socket.on("player_ready", () => {
+io.emit("game_state", gameState)
 
-        readyPlayers.add(socket.id)
+}
 
-        io.emit("ready_update", Array.from(readyPlayers))
+io.on("connection", socket=>{
 
-        if (readyPlayers.size === players.length && players.length >= 2) {
+const player={
 
-            gameStarted = true
+id:socket.id,
+name:"Player-"+Math.floor(Math.random()*9999)
 
-            io.emit("game_start")
+}
 
-        }
+players.push(player)
 
-    })
+io.emit("players_update",players)
 
-    socket.on("spin_wheel", () => {
+socket.on("player_ready",()=>{
 
-        if (!gameStarted) return
+readyPlayers.add(socket.id)
 
-        const result = Math.floor(Math.random() * 8)
-
-        io.emit("spin_result", result)
-
-        readyPlayers.clear()
-        gameStarted = false
-
-    })
-
-    socket.on("disconnect", () => {
-
-        players = players.filter(p => p.id !== socket.id)
-        readyPlayers.delete(socket.id)
-
-        io.emit("players_update", players)
-
-    })
+io.emit("ready_update",Array.from(readyPlayers))
 
 })
 
-server.listen(3000, () => {
+socket.on("spin_press",()=>{
 
-    console.log("WheelWin-v1.1 server running")
+if(!gameState.running) return
+
+if(!gameState.buttonPress[socket.id]){
+
+gameState.buttonPress[socket.id]=true
+
+gameState.speed*=2
+
+broadcastState()
+
+}
+
+})
+
+socket.on("spin_release",()=>{
+
+if(!gameState.running) return
+
+if(gameState.buttonPress[socket.id]){
+
+gameState.buttonPress[socket.id]=false
+
+gameState.speed/=2
+
+broadcastState()
+
+}
+
+})
+
+socket.on("start_round",()=>{
+
+if(players.length<2) return
+
+if(readyPlayers.size!==players.length) return
+
+gameState.running=true
+gameState.speed=1
+gameState.timer=5
+gameState.buttonPress={}
+
+broadcastState()
+
+startTimer()
+
+})
+
+socket.on("disconnect",()=>{
+
+players=players.filter(p=>p.id!==socket.id)
+
+readyPlayers.delete(socket.id)
+
+delete gameState.buttonPress[socket.id]
+
+io.emit("players_update",players)
+
+})
+
+})
+
+function startTimer(){
+
+let interval=setInterval(()=>{
+
+gameState.timer--
+
+broadcastState()
+
+if(gameState.timer<=0){
+
+clearInterval(interval)
+
+finishRound()
+
+}
+
+},1000)
+
+}
+
+function finishRound(){
+
+gameState.running=false
+
+const result=Math.floor(Math.random()*8)
+
+io.emit("round_result",result)
+
+readyPlayers.clear()
+
+}
+
+server.listen(3000,()=>{
+
+console.log("WheelWin-v1.1 PRO server running")
 
 })
