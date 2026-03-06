@@ -1,7 +1,18 @@
 # wheelwin public
-wheelwin
+wheelwin-v1.1
 │
-├── index.html
-├── style.css
-├── game.js
-└── vercel.json# wheelwin-v1.1
+├ package.json
+├ server.js
+├ vercel.json
+│
+├ public
+│   ├ index.html
+│   ├ style.css
+│   ├ game.js
+│   ├ wheel.js
+│   └ ui.js
+│
+└ src
+    ├ socket.js
+    ├ players.js
+    └ gameLogic.js
