@@ -1,19 +1,21 @@
-function renderPlayers(){
+const timerDiv=document.createElement("div")
+timerDiv.id="timer"
 
-playersDiv.innerHTML=""
+document.body.appendChild(timerDiv)
 
-players.forEach(p=>{
+const speedDiv=document.createElement("div")
+speedDiv.id="speed"
 
-const div=document.createElement("div")
+document.body.appendChild(speedDiv)
 
-div.className="player"
+function updateTimer(t){
 
-let status = readyList.includes(p.id) ? "READY" : "WAIT"
+timerDiv.innerText="TIME: "+t
 
-div.innerText = p.name + " - " + status
+}
 
-playersDiv.appendChild(div)
+function updateSpeed(s){
 
-})
+speedDiv.innerText="SPEED x"+s
 
 }
