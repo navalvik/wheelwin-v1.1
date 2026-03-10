@@ -1,158 +1,199 @@
-import { Socket, Server } from "socket.io"
+import { Socket } from "socket.io"
 import { RoomManager } from "../game/RoomManager"
-import { GameRoom } from "../game/GameRoom"
+import { AntiCheat } from "../security/antiCheat"
 
-export class MessageHandler {
+const roomManager = new RoomManager()
+const antiCheat = new AntiCheat()
 
-  private io: Server
-  private roomManager: RoomManager
+export function registerMessageHandlers(socket: Socket) {
 
-  constructor(io: Server, roomManager: RoomManager) {
-
-    this.io = io
-    this.roomManager = roomManager
-
-  }
-
-  /*
-  REGISTER SOCKET EVENTS
-  */
-
-  register(socket: Socket) {
-
-    socket.on("join_room", (data) =>
-      this.handleJoinRoom(socket, data)
-    )
-
-    socket.on("place_bet", (data) =>
-      this.handlePlaceBet(socket, data)
-    )
-
-    socket.on("leave_room", (data) =>
-      this.handleLeaveRoom(socket, data)
-    )
-
-  }
+  let currentRoomId: string | null = null
+  let playerId: string | null = null
 
   /*
   JOIN ROOM
   */
 
-  private handleJoinRoom(socket: Socket, data: any) {
+  socket.on("join_room", ({ roomId, id, username }) => {
 
-    const { roomId, playerId } = data
+    playerId = id
+    currentRoomId = roomId
 
-    if (!roomId || !playerId) {
+    const room = roomManager.getOrCreateRoom(roomId)
 
-      socket.emit("error", {
-        message: "Invalid join request"
-      })
-
-      return
-
-    }
-
-    const room: GameRoom | undefined =
-      this.roomManager.getRoom(roomId)
-
-    if (!room) {
-
-      socket.emit("error", {
-        message: "Room not found"
-      })
-
-      return
-
-    }
+    const player = roomManager.addPlayerToRoom(
+      roomId,
+      playerId,
+      socket.id,
+      username
+    )
 
     socket.join(roomId)
 
-    room.addPlayer({
-      id: playerId,
-      socketId: socket.id,
-      tickets: 0
-    })
+    /*
+    SEND FULL ROOM STATE
+    */
 
-    socket.emit("joined_room", {
+    socket.emit("room_update", room.getStats())
 
-      roomId,
-      players: room.getPlayers()
+    socket.to(roomId).emit("players_update", room.getPlayers())
 
-    })
-
-    this.io.to(roomId).emit("player_joined", {
-
-      playerId
-
-    })
-
-  }
+  })
 
   /*
   PLACE BET
   */
 
-  private handlePlaceBet(socket: Socket, data: any) {
+  socket.on("place_bet", ({ amount }) => {
 
-    const { roomId, playerId, amount } = data
+    if (!playerId || !currentRoomId) return
 
-    if (!roomId || !playerId || !amount) {
+    if (!antiCheat.checkMessageRate(playerId)) return
+    if (!antiCheat.validateBetAmount(amount)) return
+    if (!antiCheat.checkBetRate(playerId)) return
 
-      socket.emit("error", {
-        message: "Invalid bet"
-      })
-
-      return
-
-    }
-
-    const room = this.roomManager.getRoom(roomId)
-
+    const room = roomManager.getRoom(currentRoomId)
     if (!room) return
 
     try {
 
       room.placeBet(playerId, amount)
 
-      this.io.to(roomId).emit("player_bet", {
+      /*
+      UPDATE PLAYERS + BANK
+      */
 
-        playerId,
-        amount
+      const payload = {
 
-      })
+        players: room.getPlayers(),
+        bank: room.getBank(),
+        roundId: room.roundId
+
+      }
+
+      socket.to(currentRoomId).emit("room_update", payload)
+      socket.emit("room_update", payload)
 
     } catch (err) {
 
       socket.emit("error", {
-        message: "Bet rejected"
+        message: (err as Error).message
       })
 
     }
 
-  }
+  })
 
   /*
-  LEAVE ROOM
+  START SPIN
   */
 
-  private handleLeaveRoom(socket: Socket, data: any) {
+  socket.on("start_spin", () => {
 
-    const { roomId, playerId } = data
+    if (!currentRoomId) return
 
-    const room = this.roomManager.getRoom(roomId)
+    const room = roomManager.getRoom(currentRoomId)
+    if (!room) return
+
+    room.startSpin()
+
+    const activePlayers = room.getPlayers().length
+
+    const baseSpeed = 1
+    const speed = Math.min(baseSpeed * activePlayers, 4)
+
+    /*
+    BROADCAST SPIN START
+    */
+
+    socket.to(currentRoomId).emit("spin_start", {
+      speed
+    })
+
+    socket.emit("spin_start", {
+      speed
+    })
+
+  })
+
+  /*
+  SPIN RESULT
+  */
+
+  socket.on("spin_result", ({ winnerId }) => {
+
+    if (!currentRoomId) return
+
+    const room = roomManager.getRoom(currentRoomId)
+    if (!room) return
+
+    const bank = room.getBank()
+
+    const houseEdge = 0.05
+
+    const prize = bank * (1 - houseEdge)
+
+    room.finishRound()
+
+    /*
+    SEND RESULT
+    */
+
+    socket.to(currentRoomId).emit("spin_result", {
+
+      winnerId,
+      prize
+
+    })
+
+    socket.emit("spin_result", {
+
+      winnerId,
+      prize
+
+    })
+
+    /*
+    RESET ROOM
+    */
+
+    setTimeout(() => {
+
+      room.resetRound()
+
+      socket.to(currentRoomId!).emit(
+        "room_update",
+        room.getStats()
+      )
+
+      socket.emit(
+        "room_update",
+        room.getStats()
+      )
+
+    }, 3000)
+
+  })
+
+  /*
+  DISCONNECT
+  */
+
+  socket.on("disconnect", () => {
+
+    if (!currentRoomId || !playerId) return
+
+    const room = roomManager.getRoom(currentRoomId)
 
     if (!room) return
 
     room.removePlayer(playerId)
 
-    socket.leave(roomId)
+    socket.to(currentRoomId).emit(
+      "players_update",
+      room.getPlayers()
+    )
 
-    this.io.to(roomId).emit("player_left", {
-
-      playerId
-
-    })
-
-  }
+  })
 
 }
